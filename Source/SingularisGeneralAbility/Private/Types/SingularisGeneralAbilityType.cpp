@@ -1,0 +1,1 @@
+﻿#include "Types/SingularisGeneralAbilityType.h"

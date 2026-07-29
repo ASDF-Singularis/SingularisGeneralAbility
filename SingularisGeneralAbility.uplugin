@@ -1,0 +1,29 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "0.1.0",
+    "FriendlyName": "SingularisGeneralAbility",
+    "Description": "Singularis 生态通用能力系统。提供基于 GameplayTag 驱动、管线化组织、网络复制就绪的可扩展能力框架，支持 EnhancedInput 输入绑定与 Blueprint 子类化。",
+    "Category": "Singularis",
+    "CreatedBy": "TrifingZW",
+    "CreatedByURL": "",
+    "DocsURL": "",
+    "MarketplaceURL": "",
+    "SupportURL": "",
+    "CanContainContent": true,
+    "IsBetaVersion": true,
+    "IsExperimentalVersion": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "SingularisGeneralAbility",
+            "Type": "Runtime",
+            "LoadingPhase": "Default"
+        },
+        {
+            "Name": "SingularisGeneralAbilityEditor",
+            "Type": "Editor",
+            "LoadingPhase": "Default"
+        }
+    ]
+}
