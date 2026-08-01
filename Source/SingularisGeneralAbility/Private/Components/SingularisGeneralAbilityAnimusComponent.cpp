@@ -6,7 +6,6 @@
 #include <Engine/LocalPlayer.h>
 #include <GameFramework/Pawn.h>
 #include <GameFramework/PlayerController.h>
-#include <Net/UnrealNetwork.h>
 #include <UObject/ConstructorHelpers.h>
 
 #include "Components/SingularisGeneralAbilityComponent.h"
@@ -111,6 +110,29 @@ void USingularisGeneralAbilityAnimusComponent::Disabled()
 	SetEnabled(false);
 }
 
+void USingularisGeneralAbilityAnimusComponent::ServerTryActivateAbility_Implementation(
+	USingularisGeneralAbilityComponent* AbilityComponent,
+	const FGameplayTag& AbilityTag,
+	const FInputActionValue& InputActionValue
+)
+{
+	// 1) 服务器收到 RPC 后，将请求转发至 AbilityComponent 的 TryActivateAbility（HasAuthority 内部已保证）
+	if (!IsValid(AbilityComponent)) return;
+	if (!OwnerPlayerController.IsValid()) return;
+
+	AbilityComponent->TryActivateAbility(AbilityTag, OwnerPlayerController.Get(), InputActionValue);
+}
+
+bool USingularisGeneralAbilityAnimusComponent::ServerTryActivateAbility_Validate(
+	USingularisGeneralAbilityComponent* AbilityComponent,
+	const FGameplayTag& AbilityTag,
+	const FInputActionValue& InputActionValue
+)
+{
+	// 1) 仅校验 AbilityComponent 有效性，防止客户端传入无效指针
+	return IsValid(AbilityComponent);
+}
+
 void USingularisGeneralAbilityAnimusComponent::SetEnabled(const bool bInEnabled)
 {
 	// 1) 仅本地控制器可变更输入启用状态
@@ -205,29 +227,6 @@ void USingularisGeneralAbilityAnimusComponent::OnPossessPawnChanged(APawn* OldPa
 	if (!IsValid(NewPawn)) return;
 
 	RefreshAbilityComponent();
-}
-
-void USingularisGeneralAbilityAnimusComponent::ServerTryActivateAbility_Implementation(
-	USingularisGeneralAbilityComponent* AbilityComponent,
-	const FGameplayTag& AbilityTag,
-	const FInputActionValue& InputActionValue
-)
-{
-	// 1) 服务器收到 RPC 后，将请求转发至 AbilityComponent 的 TryActivateAbility（HasAuthority 内部已保证）
-	if (!IsValid(AbilityComponent)) return;
-	if (!OwnerPlayerController.IsValid()) return;
-
-	AbilityComponent->TryActivateAbility(AbilityTag, OwnerPlayerController.Get(), InputActionValue);
-}
-
-bool USingularisGeneralAbilityAnimusComponent::ServerTryActivateAbility_Validate(
-	USingularisGeneralAbilityComponent* AbilityComponent,
-	const FGameplayTag& AbilityTag,
-	const FInputActionValue& InputActionValue
-)
-{
-	// 1) 仅校验 AbilityComponent 有效性，防止客户端传入无效指针
-	return IsValid(AbilityComponent);
 }
 
 // ReSharper restore CppMemberFunctionMayBeConst

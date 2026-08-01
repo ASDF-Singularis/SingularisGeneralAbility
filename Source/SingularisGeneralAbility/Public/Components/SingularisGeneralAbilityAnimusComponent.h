@@ -145,15 +145,7 @@ public:
 #pragma endregion
 
 private:
-#pragma region Internal Function
-
-	/**
-	 * 设置本地输入启用状态。
-	 * 仅对本地控制器生效，状态不复制。
-	 *
-	 * @param bInEnabled true 添加 InputMappingContext，false 移除
-	 */
-	void SetEnabled(bool bInEnabled);
+#pragma region RPC
 
 	/**
 	 * Server RPC：将能力激活请求从客户端发送至服务器。
@@ -168,6 +160,18 @@ private:
 		const FGameplayTag& AbilityTag,
 		const FInputActionValue& InputActionValue
 	);
+
+#pragma endregion
+
+#pragma region Internal Function
+
+	/**
+	 * 设置本地输入启用状态。
+	 * 仅对本地控制器生效，状态不复制。
+	 *
+	 * @param bInEnabled true 添加 InputMappingContext，false 移除
+	 */
+	void SetEnabled(bool bInEnabled);
 
 	/** 将 AbilityAnimusInputs 中配置的输入动作绑定至 EnhancedInputComponent */
 	void BindInputAction();
