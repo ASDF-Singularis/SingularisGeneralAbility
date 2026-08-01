@@ -98,5 +98,11 @@ private:
 	 */
 	void RegisterAbilitySubObjects();
 
+	/**
+	 * 将 AbilityPipelineMapping 中全部已注册的 Instanced 能力子对象从网络复制列表中移除。
+	 * 仅在服务器端执行。
+	 */
+	void UnregisterAbilitySubObjects();
+
 #pragma endregion
 };

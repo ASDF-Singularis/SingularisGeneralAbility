@@ -27,17 +27,7 @@ void USingularisGeneralAbilityComponent::BeginPlay()
 
 void USingularisGeneralAbilityComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// 1) 遍历全部管线，逐个注销能力子对象的复制注册
-	for (auto& [Tag, Pipeline] : AbilityPipelineMapping)
-	{
-		for (auto& Entry : Pipeline.Abilities)
-		{
-			if (IsValid(Entry.Ability))
-			{
-				RemoveReplicatedSubObject(Entry.Ability);
-			}
-		}
-	}
+	UnregisterAbilitySubObjects();
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -100,6 +90,23 @@ void USingularisGeneralAbilityComponent::RegisterAbilitySubObjects()
 			if (!IsValid(Entry.Ability)) continue;
 
 			AddReplicatedSubObject(Entry.Ability);
+		}
+	}
+}
+
+void USingularisGeneralAbilityComponent::UnregisterAbilitySubObjects()
+{
+	// 1) 仅服务器端执行子对象注销
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+
+	// 2) 遍历全部能力管线，将已注册的能力子对象从网络复制列表中移除
+	for (auto& [Tag, Pipeline] : AbilityPipelineMapping)
+	{
+		for (auto& Entry : Pipeline.Abilities)
+		{
+			if (!IsValid(Entry.Ability)) continue;
+
+			RemoveReplicatedSubObject(Entry.Ability);
 		}
 	}
 }
