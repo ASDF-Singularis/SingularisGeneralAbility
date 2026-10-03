@@ -34,7 +34,7 @@ struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityEntry
 
 /**
  * 引力奇点通用能力管线。
- * 包装一组有序的能力条目。管线内各能力按数组顺序依次执行 CanActivate / Activate。
+ * 包装一组有序的能力条目。管线内各能力按数组顺序依次执行授权例程（CanAuthorize / Authorize）。
  */
 USTRUCT(BlueprintType)
 struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityPipeline

@@ -11,11 +11,13 @@ public class SingularisGeneralAbilityEditor : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"Projects",
 
 				"SingularisGeneralAbility",
 
 				"UMG",
 				"UMGEditor",
+
 				"UnrealEd",
 				"AssetTools",
 				"ContentBrowser"

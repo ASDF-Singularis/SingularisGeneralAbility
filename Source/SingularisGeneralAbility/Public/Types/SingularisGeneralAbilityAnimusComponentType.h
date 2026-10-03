@@ -9,8 +9,7 @@ class UInputAction;
 
 /**
  * 引力奇点通用能力意志输入映射。
- * 将 EnhancedInput 的 InputAction 与能力 GameplayTag 关联，
- * 用于 AnimusComponent 的输入绑定。
+ * 将 EnhancedInput 的 InputAction 与触发标签关联，用于意志组件的授权 / 触发结束信号绑定。
  */
 USTRUCT(BlueprintType)
 struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityAnimusInput
@@ -22,16 +21,19 @@ struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityAnimusInput
 	TObjectPtr<UInputAction> InputAction = nullptr;
 
 	/**
-	 * 触发时发送至服务器的能力标签。
-	 * 限定为 "Singularis.General.Ability" 层级下的 GameplayTag。
+	 * 触发标签。Started 相位发送授权信号；限定为 "Singularis.General.Ability.Trigger" 层级。
 	 */
 	UPROPERTY(
 		EditAnywhere,
 		BlueprintReadWrite,
-		meta = (
-			Categories = "Singularis.General.Ability",
-			ForceSelection = "true"
-		)
+		meta = (ForceSelection = "true")
 	)
-	FGameplayTag AbilityTag{};
+	FGameplayTag TriggerTag{};
+
+	/**
+	 * 按住型输入声明。为 true 时 Completed 与 Canceled 相位发送触发结束信号；
+	 * 为 false 时仅 Started 相位发送授权信号。
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "按住型"))
+	bool bWhileHeld = false;
 };

@@ -6,6 +6,8 @@ public class SingularisGeneralAbility : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		PublicDependencyModuleNames.AddRange(["EnhancedInput"]);
+
 		PrivateDependencyModuleNames.AddRange(
 			[
 				"Core",

@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include <CoreMinimal.h>
-#include <InputActionValue.h>
 
+#include "InputActionValue.h"
 #include "SingularisGeneralAbilityType.generated.h"
 
 class AActor;
@@ -11,9 +11,43 @@ class AController;
 class USingularisGeneralAbilityComponent;
 
 /**
+ * 引力奇点通用能力政策。
+ * 决定能力授权后的生命周期形态。
+ */
+UENUM(BlueprintType)
+enum class ESingularisGeneralAbilityPolicy : uint8
+{
+	/** 瞬时：Authorize 返回后立即结束，不进入授权状态。 */
+	Instant UMETA(DisplayName = "瞬时"),
+
+	/** 持续：保持授权状态，直至被撤销。 */
+	Sustained UMETA(DisplayName = "持续")
+};
+
+/**
+ * 撤销原因。
+ * 描述能力结束授权状态的触发路径。
+ */
+UENUM(BlueprintType)
+enum class ESingularisGeneralAbilityEndReason : uint8
+{
+	/** 完成：能力自行撤销。 */
+	Completed UMETA(DisplayName = "完成"),
+
+	/** 触发结束：输入层触发结束信号。 */
+	TriggerEnded UMETA(DisplayName = "触发结束"),
+
+	/** 被打断：冲突打断或状态打断。 */
+	Canceled UMETA(DisplayName = "被打断"),
+
+	/** 销毁：宿主组件销毁。 */
+	Destroyed UMETA(DisplayName = "销毁")
+};
+
+/**
  * 引力奇点通用能力上下文。
  *
- * 在 TryActivateAbility 中由服务器组装，传递至各能力的 CanActivate / Activate 接口。
+ * 在授权例程中由服务器组装，传递至各能力的 CanAuthorize / Authorize 接口，并在授权期间缓存于能力。
  * 其中的 Actor 指针在客户端上可能无效，该结构仅用于服务器端能力逻辑执行。
  */
 USTRUCT(BlueprintType)
@@ -37,7 +71,7 @@ struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityContext
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<AActor> Target = nullptr;
 
-	/** 执行能力激活的组件引用 */
+	/** 执行能力授权的组件引用 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<USingularisGeneralAbilityComponent> AbilityComponent = nullptr;
 

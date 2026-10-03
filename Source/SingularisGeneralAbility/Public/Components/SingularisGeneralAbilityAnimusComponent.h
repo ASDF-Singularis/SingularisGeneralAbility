@@ -13,8 +13,11 @@ class UInputMappingContext;
 /**
  * 引力奇点通用能力意志组件。
  *
- * 挂载于 APlayerController，负责将 EnhancedInput 输入事件转化为能力激活请求，
- * 通过 ServerTryActivateAbility (Reliable RPC) 将请求发送至服务器。
+ * 挂载于 APlayerController，负责将 EnhancedInput 输入事件翻译为触发信号，
+ * 通过 ServerTryAuthorizeAbility / ServerTryRevokeTrigger (Reliable RPC) 发送至服务器。
+ *
+ * 输入相位语义：Started 始终发送授权信号；Completed 与 Canceled 仅在按住型输入（bWhileHeld）
+ * 上发送触发结束信号。组件不涉及能力逻辑，输入与逻辑分离。
  *
  * 输入绑定仅对本地控制器生效。组件通过 OnPossessPawnChanged 回调自动缓存
  * 当前 Possess 的 Pawn 上的 USingularisGeneralAbilityComponent 引用。
@@ -38,7 +41,7 @@ public:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "SingularisGeneralAbility|通用能力意志组件|参数",
+		Category = "引力奇点通用能力意志组件",
 		meta = (DisplayName = "自动控制")
 	)
 	bool bAutoControl = true;
@@ -49,7 +52,7 @@ public:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "SingularisGeneralAbility|通用能力意志组件|参数",
+		Category = "引力奇点通用能力意志组件",
 		meta = (DisplayName = "启动启用")
 	)
 	bool bStartEnabled = true;
@@ -60,7 +63,7 @@ public:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "SingularisGeneralAbility|通用能力意志组件|输入",
+		Category = "引力奇点通用能力意志组件",
 		meta = (DisplayName = "输入优先级")
 	)
 	int32 InputPriority = 10;
@@ -72,19 +75,19 @@ public:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "SingularisGeneralAbility|通用能力意志组件|输入",
+		Category = "引力奇点通用能力意志组件",
 		meta = (DisplayName = "输入映射上下文")
 	)
 	TObjectPtr<UInputMappingContext> InputMappingContext = nullptr;
 
 	/**
-	 * 输入动作到能力 GameplayTag 的映射列表。
-	 * 若未手动配置，则自动添加默认的 IA_GeneralAbility → Singularis.General.Ability.Default 映射。
+	 * 输入动作到触发标签的映射列表。
+	 * 若未手动配置，则自动添加默认的 IA_GeneralAbility → Singularis.General.Ability.Trigger.Default 映射。
 	 */
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "SingularisGeneralAbility|通用能力意志组件|输入",
+		Category = "引力奇点通用能力意志组件",
 		meta = (DisplayName = "意志输入集")
 	)
 	TArray<FSingularisGeneralAbilityAnimusInput> AbilityAnimusInputs{};
@@ -92,7 +95,7 @@ public:
 #pragma endregion
 
 private:
-#pragma region Internal Variable
+#pragma region State
 
 	/** 缓存的 Owner PlayerController 引用 */
 	TWeakObjectPtr<APlayerController> OwnerPlayerController = nullptr;
@@ -123,11 +126,35 @@ public:
 #pragma region API
 
 	/**
+	 * 是否正在控制角色通用能力。
+	 *
+	 * @return 存在有效受控角色通用能力时返回 true。
+	 */
+	UFUNCTION(
+		BlueprintPure,
+		Category = "引力奇点通用能力意志组件|API",
+		meta = (DisplayName = "Controlled")
+	)
+	bool Controlled() const { return CachedAbilityComponent.IsValid(); }
+
+	/**
+	 * 获取当前受控角色通用能力。
+	 *
+	 * @return 受控角色通用能力，未控制时返回 nullptr。
+	 */
+	UFUNCTION(
+		BlueprintPure,
+		Category = "引力奇点通用能力意志组件|API",
+		meta = (DisplayName = "GetAbilityComponent")
+	)
+	USingularisGeneralAbilityComponent* GetAbilityComponent() const { return CachedAbilityComponent.Get(); }
+
+	/**
 	 * 启用本地输入。仅对本地控制器生效，状态不复制。
 	 */
 	UFUNCTION(
 		BlueprintCallable,
-		Category = "SingularisGeneralAbility|通用能力意志组件|API",
+		Category = "引力奇点通用能力意志组件|API",
 		meta = (DisplayName = "Enabled")
 	)
 	void Enabled();
@@ -137,10 +164,34 @@ public:
 	 */
 	UFUNCTION(
 		BlueprintCallable,
-		Category = "SingularisGeneralAbility|通用能力意志组件|API",
+		Category = "引力奇点通用能力意志组件|API",
 		meta = (DisplayName = "Disabled")
 	)
 	void Disabled();
+
+	/**
+	 * 开始控制指定角色通用能力。
+	 *
+	 * @param AbilityComponent 要控制的角色通用能力组件。
+	 */
+	UFUNCTION(
+		BlueprintCallable,
+		Category = "引力奇点通用能力意志组件|API",
+		meta = (DisplayName = "控制")
+	)
+	void Control(USingularisGeneralAbilityComponent* AbilityComponent);
+
+	/**
+	 * 释放当前受控角色通用能力。
+	 *
+	 * 本地控制器操作。移除输入映射上下文并清空受控状态，未控制时静默忽略。
+	 */
+	UFUNCTION(
+		BlueprintCallable,
+		Category = "引力奇点通用能力意志组件|API",
+		meta = (DisplayName = "释放")
+	)
+	void Release();
 
 #pragma endregion
 
@@ -148,51 +199,49 @@ private:
 #pragma region RPC
 
 	/**
-	 * Server RPC：将能力激活请求从客户端发送至服务器。
+	 * Server RPC：将授权请求从客户端发送至服务器。
 	 *
 	 * @param AbilityComponent 目标能力组件
-	 * @param AbilityTag 要激活的能力标签
+	 * @param TriggerTag 触发标签
 	 * @param InputActionValue 触发输入值
 	 */
 	UFUNCTION(Server, Reliable, WithValidation)
-	void ServerTryActivateAbility(
+	void ServerTryAuthorizeAbility(
 		USingularisGeneralAbilityComponent* AbilityComponent,
-		const FGameplayTag& AbilityTag,
+		const FGameplayTag& TriggerTag,
 		const FInputActionValue& InputActionValue
 	);
 
-#pragma endregion
-
-#pragma region Internal Function
-
 	/**
-	 * 设置本地输入启用状态。
-	 * 仅对本地控制器生效，状态不复制。
+	 * Server RPC：将触发结束信号从客户端发送至服务器。
 	 *
-	 * @param bInEnabled true 添加 InputMappingContext，false 移除
+	 * @param AbilityComponent 目标能力组件
+	 * @param TriggerTag 触发结束信号对应的触发标签
 	 */
-	void SetEnabled(bool bInEnabled);
-
-	/** 将 AbilityAnimusInputs 中配置的输入动作绑定至 EnhancedInputComponent */
-	void BindInputAction();
-
-	/** 根据当前启用状态添加或移除 InputMappingContext */
-	void RefreshInputMappingContext() const;
-
-	/** 从当前 Possess Pawn 上查找并缓存 USingularisGeneralAbilityComponent */
-	void RefreshAbilityComponent();
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerTryRevokeTrigger(
+		USingularisGeneralAbilityComponent* AbilityComponent,
+		const FGameplayTag& TriggerTag
+	);
 
 #pragma endregion
 
 #pragma region Callback
 
 	/**
-	 * 输入动作触发回调。通过 Server RPC 向服务器发送能力激活请求。
+	 * 输入按下回调。通过 Server RPC 向服务器发送授权请求。
 	 *
 	 * @param InputActionValue 输入动作值
-	 * @param GameplayTag 绑定时关联的能力标签
+	 * @param TriggerTag 绑定时关联的触发标签
 	 */
-	void HandleAbilityInput(const FInputActionValue& InputActionValue, const FGameplayTag GameplayTag);
+	void HandleAbilityAuthorize(const FInputActionValue& InputActionValue, const FGameplayTag TriggerTag);
+
+	/**
+	 * 输入释放 / 中止回调。通过 Server RPC 向服务器发送触发结束信号。
+	 *
+	 * @param TriggerTag 绑定时关联的触发标签
+	 */
+	void HandleAbilityRevoke(const FGameplayTag TriggerTag);
 
 	/**
 	 * Possess Pawn 变更回调。自动刷新 CachedAbilityComponent。
@@ -202,6 +251,48 @@ private:
 	 */
 	UFUNCTION()
 	void OnPossessPawnChanged(APawn* OldPawn, APawn* NewPawn);
+
+#pragma endregion
+
+#pragma region Internal Function
+
+	/** 将 AbilityAnimusInputs 中配置的输入动作按相位绑定至 EnhancedInputComponent */
+	void BindInput();
+
+	/** 根据当前启用状态添加或移除 InputMappingContext */
+	void RefreshInput() const;
+
+	/**
+	 * 设置本地输入启用状态。
+	 * 仅对本地控制器生效，状态不复制。
+	 *
+	 * @param IsEnabled true 添加 InputMappingContext，false 移除
+	 */
+	void SetEnabled(bool IsEnabled);
+
+	/**
+	 * 应用启用状态
+	 *
+	 * @param OldIsEnabled 启用状态
+	 */
+	void ApplyInEnabled(bool OldIsEnabled) const;
+
+	/**
+	 * 设置受控角色通用能力并应用副作用。
+	 *
+	 * @param AbilityComponent 新的受控角色通用能力，传入 nullptr 表示释放。
+	 */
+	void SetAbilityComponent(USingularisGeneralAbilityComponent* AbilityComponent);
+
+	/**
+	 * 应用受控角色通用能力变化到输入映射。
+	 *
+	 * @param OldAbilityComponent 变化前的旧受控角色通用能力，当前实现未使用。
+	 */
+	void ApplyAbilityComponent(const USingularisGeneralAbilityComponent* OldAbilityComponent) const;
+
+	/** 从当前 Possess Pawn 上查找并缓存 USingularisGeneralAbilityComponent */
+	void RefreshAbilityComponent();
 
 #pragma endregion
 };
