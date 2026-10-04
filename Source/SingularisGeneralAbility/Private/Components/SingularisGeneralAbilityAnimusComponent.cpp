@@ -46,8 +46,7 @@ USingularisGeneralAbilityAnimusComponent::USingularisGeneralAbilityAnimusCompone
 		AbilityAnimusInputs.Add(
 			{
 				DefaultAbilityActionFinder.Object,
-				SingularisGeneral_Ability_Trigger_Default,
-				false
+				SingularisGeneral_Ability_Trigger_Default
 			}
 		);
 	}
@@ -286,7 +285,7 @@ void USingularisGeneralAbilityAnimusComponent::BindInput()
 	}
 
 	// 3) 遍历 AbilityAnimusInputs 配置，按输入相位绑定回调
-	for (const auto& [InputAction, TriggerTag, bWhileHeld] : AbilityAnimusInputs)
+	for (const auto& [InputAction, TriggerTag] : AbilityAnimusInputs)
 	{
 		if (!IsValid(InputAction) || !TriggerTag.IsValid()) continue;
 
@@ -299,9 +298,7 @@ void USingularisGeneralAbilityAnimusComponent::BindInput()
 			TriggerTag
 		);
 
-		// 5) 按住型输入：释放与中止相位发送触发结束信号
-		if (!bWhileHeld) continue;
-
+		// 5) 完成相位：发送触发结束信号
 		EnhancedInputComponent->BindAction(
 			InputAction,
 			ETriggerEvent::Completed,

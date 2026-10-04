@@ -29,11 +29,4 @@ struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityAnimusInput
 		meta = (ForceSelection = "true")
 	)
 	FGameplayTag TriggerTag{};
-
-	/**
-	 * 按住型输入声明。为 true 时 Completed 与 Canceled 相位发送触发结束信号；
-	 * 为 false 时仅 Started 相位发送授权信号。
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "按住型"))
-	bool bWhileHeld = false;
 };
