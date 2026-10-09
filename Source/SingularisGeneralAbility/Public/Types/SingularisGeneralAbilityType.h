@@ -11,36 +11,19 @@ class AController;
 class USingularisGeneralAbilityComponent;
 
 /**
- * 引力奇点通用能力政策。
- * 决定能力授权后的生命周期形态。
- */
-UENUM(BlueprintType)
-enum class ESingularisGeneralAbilityPolicy : uint8
-{
-	/** 瞬时：Authorize 返回后立即结束，不进入授权状态。 */
-	Instant UMETA(DisplayName = "瞬时"),
-
-	/** 持续：保持授权状态，直至被撤销。 */
-	Sustained UMETA(DisplayName = "持续")
-};
-
-/**
  * 撤销原因。
- * 描述能力结束授权状态的触发路径。
+ * 描述能力结束授权状态的来源：Completed 为内部自撤销，其余为外部因素。
  */
 UENUM(BlueprintType)
 enum class ESingularisGeneralAbilityEndReason : uint8
 {
-	/** 完成：能力自行撤销。 */
+	/** 完成：能力自行结束（内部自撤销出口）。 */
 	Completed UMETA(DisplayName = "完成"),
 
-	/** 触发结束：输入层触发结束信号。 */
-	TriggerEnded UMETA(DisplayName = "触发结束"),
-
-	/** 被打断：冲突打断或状态打断。 */
+	/** 被打断：状态打断、冲突打断或程序化外部撤销。 */
 	Canceled UMETA(DisplayName = "被打断"),
 
-	/** 销毁：宿主组件销毁。 */
+	/** 销毁：宿主组件销毁（外部因素）。 */
 	Destroyed UMETA(DisplayName = "销毁")
 };
 

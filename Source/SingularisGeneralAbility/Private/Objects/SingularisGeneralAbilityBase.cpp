@@ -103,6 +103,13 @@ USingularisGeneralAbilityComponent* USingularisGeneralAbility::GetOwningAbilityC
 	return Cast<USingularisGeneralAbilityComponent>(GetOuter());
 }
 
+void USingularisGeneralAbility::FinishAbility()
+{
+	// 1) 卫语句：未持有能力组件时无操作
+	if (USingularisGeneralAbilityComponent* Component = GetOwningAbilityComponent())
+		Component->RequestRevoke(this, ESingularisGeneralAbilityEndReason::Completed);
+}
+
 bool USingularisGeneralAbility::CanAuthorize_Implementation(const FSingularisGeneralAbilityContext& Context) const
 {
 	// 基类默认允许授权；子类可覆写以否决特定上下文

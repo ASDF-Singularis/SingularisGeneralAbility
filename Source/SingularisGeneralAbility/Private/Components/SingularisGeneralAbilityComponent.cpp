@@ -34,11 +34,13 @@ void USingularisGeneralAbilityComponent::EndPlay(const EEndPlayReason::Type EndP
 	// 1) 权威端：先撤销全部已授权能力（销毁原因），保证清理钩子可见完整上下文
 	if (GetOwner() && GetOwner()->HasAuthority())
 	{
+		const FDispatchScope DispatchScope(*this);
+
 		TArray<USingularisGeneralAbility*> Abilities;
 		CollectUniqueAbilities(Abilities);
 
 		for (USingularisGeneralAbility* Ability : Abilities)
-			RevokeAbility(Ability, ESingularisGeneralAbilityEndReason::Destroyed);
+			RequestRevoke(Ability, ESingularisGeneralAbilityEndReason::Destroyed);
 	}
 
 	// 2) 将全部能力子对象从网络复制列表中移除
@@ -58,7 +60,10 @@ void USingularisGeneralAbilityComponent::TickComponent(
 	// 1) 卫语句：逐帧仅在权威端执行
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 
-	// 2) 逐帧回调已授权能力
+	// 2) 撤销调度作用域：逐帧回调中的自撤销请求在归零时统一结算
+	const FDispatchScope DispatchScope(*this);
+
+	// 3) 逐帧回调已授权能力
 	SustainAuthorizedAbilities(DeltaTime);
 }
 
@@ -79,7 +84,10 @@ void USingularisGeneralAbilityComponent::TryAuthorizeAbility(
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	if (!IsValid(Controller) || !TriggerTag.IsValid()) return;
 
-	// 2) 组装执行上下文，将执行主体泛化为 Avatar
+	// 2) 撤销调度作用域：本次触发的自撤销与连锁撤销在归零时统一结算
+	const FDispatchScope DispatchScope(*this);
+
+	// 3) 组装执行上下文，将执行主体泛化为 Avatar
 	FSingularisGeneralAbilityContext Context;
 	Context.Controller = Controller;
 	Context.Instigator = Controller->GetPawn();
@@ -88,7 +96,7 @@ void USingularisGeneralAbilityComponent::TryAuthorizeAbility(
 	Context.AbilityComponent = this;
 	Context.InputValue = InputActionValue;
 
-	// 3) 遍历触发管线映射，使用触发标签层级匹配后按序执行授权例程（按实例去重）
+	// 4) 遍历触发管线映射，使用触发标签层级匹配后按序执行授权例程（按实例去重）
 	TSet<USingularisGeneralAbility*> Attempted;
 	for (const auto& [Tag, Pipeline] : TriggerPipelineMapping)
 	{
@@ -114,7 +122,10 @@ void USingularisGeneralAbilityComponent::TryAuthorizeAbilitiesByTag(
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	if (!IsValid(Controller) || !IdentityTag.IsValid()) return;
 
-	// 2) 组装执行上下文（无触发标签与输入值）
+	// 2) 撤销调度作用域
+	const FDispatchScope DispatchScope(*this);
+
+	// 3) 组装执行上下文（无触发标签与输入值）
 	FSingularisGeneralAbilityContext Context;
 	Context.Controller = Controller;
 	Context.Instigator = Controller->GetPawn();
@@ -122,7 +133,7 @@ void USingularisGeneralAbilityComponent::TryAuthorizeAbilitiesByTag(
 	Context.Target = GetOwner();
 	Context.AbilityComponent = this;
 
-	// 3) 收集并授权身份标签命中的能力（不记录触发关联）
+	// 4) 收集并授权身份标签命中的能力（不记录触发关联）
 	TArray<USingularisGeneralAbility*> Abilities;
 	CollectUniqueAbilities(Abilities);
 
@@ -144,7 +155,10 @@ void USingularisGeneralAbilityComponent::TryAuthorizeAbilityByClass(
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	if (!IsValid(Controller) || !AbilityClass) return;
 
-	// 2) 组装执行上下文（无触发标签与输入值）
+	// 2) 撤销调度作用域
+	const FDispatchScope DispatchScope(*this);
+
+	// 3) 组装执行上下文（无触发标签与输入值）
 	FSingularisGeneralAbilityContext Context;
 	Context.Controller = Controller;
 	Context.Instigator = Controller->GetPawn();
@@ -152,7 +166,7 @@ void USingularisGeneralAbilityComponent::TryAuthorizeAbilityByClass(
 	Context.Target = GetOwner();
 	Context.AbilityComponent = this;
 
-	// 3) 收集并授权类匹配的能力（不记录触发关联）
+	// 4) 收集并授权类匹配的能力（不记录触发关联）
 	TArray<USingularisGeneralAbility*> Abilities;
 	CollectUniqueAbilities(Abilities);
 
@@ -170,7 +184,10 @@ void USingularisGeneralAbilityComponent::TryRevokeTrigger(const FGameplayTag& Tr
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	if (!TriggerTag.IsValid()) return;
 
-	// 2) 收集触发标签精确关联的已授权能力（先收集后撤销，避免遍历中变更）
+	// 2) 撤销调度作用域
+	const FDispatchScope DispatchScope(*this);
+
+	// 3) 收集触发标签精确关联的已授权能力（先收集后撤销，避免遍历中变更）
 	TArray<USingularisGeneralAbility*> Abilities;
 	CollectUniqueAbilities(Abilities);
 
@@ -183,9 +200,9 @@ void USingularisGeneralAbilityComponent::TryRevokeTrigger(const FGameplayTag& Tr
 		Targets.Add(Ability);
 	}
 
-	// 3) 统一撤销（原因：触发结束）
+	// 4) 统一撤销（外部原因：被打断）
 	for (USingularisGeneralAbility* Ability : Targets)
-		RevokeAbility(Ability, ESingularisGeneralAbilityEndReason::TriggerEnded);
+		RequestRevoke(Ability, ESingularisGeneralAbilityEndReason::Canceled);
 
 	UE_LOG(
 		LogSingularisGeneralAbility,
@@ -205,7 +222,10 @@ void USingularisGeneralAbilityComponent::TryRevokeAbilitiesByTag(
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	if (!IdentityTag.IsValid()) return;
 
-	// 2) 收集身份标签命中的已授权能力（先收集后撤销，避免遍历中变更）
+	// 2) 撤销调度作用域
+	const FDispatchScope DispatchScope(*this);
+
+	// 3) 收集身份标签命中的已授权能力（先收集后撤销，避免遍历中变更）
 	TArray<USingularisGeneralAbility*> Abilities;
 	CollectUniqueAbilities(Abilities);
 
@@ -218,20 +238,26 @@ void USingularisGeneralAbilityComponent::TryRevokeAbilitiesByTag(
 		Targets.Add(Ability);
 	}
 
-	// 3) 统一撤销
+	// 4) 统一撤销
 	for (USingularisGeneralAbility* Ability : Targets)
-		RevokeAbility(Ability, Reason);
+		RequestRevoke(Ability, Reason);
 }
 
 void USingularisGeneralAbilityComponent::AddStateTag(const FGameplayTag& Tag)
 {
-	// 委托内部写入：权威校验、幂等、事件广播与打断扫描
+	// 1) 撤销调度作用域：状态写入可能触发打断扫描
+	const FDispatchScope DispatchScope(*this);
+
+	// 2) 委托内部写入：权威校验、幂等、事件广播与打断扫描
 	ApplyStateTagAdded(Tag);
 }
 
 void USingularisGeneralAbilityComponent::RemoveStateTag(const FGameplayTag& Tag)
 {
-	// 委托内部写入：权威校验、幂等、事件广播（不触发打断扫描）
+	// 1) 撤销调度作用域
+	const FDispatchScope DispatchScope(*this);
+
+	// 2) 委托内部写入：权威校验、幂等、事件广播（不触发打断扫描）
 	ApplyStateTagRemoved(Tag);
 }
 
@@ -314,6 +340,45 @@ void USingularisGeneralAbilityComponent::RevokeAbility(
 	);
 }
 
+void USingularisGeneralAbilityComponent::RequestRevoke(
+	USingularisGeneralAbility* Ability,
+	const ESingularisGeneralAbilityEndReason Reason
+)
+{
+	// 1) 卫语句：仅权威端、有效能力
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+	if (!IsValid(Ability)) return;
+
+	// 2) 调度期入队，非调度期立即执行
+	if (DispatchDepth > 0)
+	{
+		PendingRevocations.Add({Ability, Reason});
+		return;
+	}
+
+	RevokeAbility(Ability, Reason);
+}
+
+void USingularisGeneralAbilityComponent::FlushPendingRevocations()
+{
+	// 1) 防重入：结算期间钩子触发的结算请求留待本轮循环处理
+	if (bIsFlushing) return;
+
+	bIsFlushing = true;
+
+	// 2) 逐批结算：执行期间新入队的请求留待下一轮，避免遍历中变更
+	while (!PendingRevocations.IsEmpty())
+	{
+		TArray<FSingularisGeneralAbilityRevokeRequest> Batch = MoveTemp(PendingRevocations);
+		PendingRevocations.Reset();
+
+		for (const FSingularisGeneralAbilityRevokeRequest& Request : Batch)
+			RevokeAbility(Request.Ability.Get(), Request.Reason);
+	}
+
+	bIsFlushing = false;
+}
+
 bool USingularisGeneralAbilityComponent::TryAuthorizeAbilityInstance(
 	USingularisGeneralAbility* Ability,
 	const FGameplayTag& TriggerTag,
@@ -341,15 +406,12 @@ bool USingularisGeneralAbilityComponent::TryAuthorizeAbilityInstance(
 	// 3) 命令式前置检查
 	if (!Ability->CanAuthorize(Context)) return false;
 
-	// 4) 持续能力：进入授权状态并授予拥有标签
-	if (Ability->Policy == ESingularisGeneralAbilityPolicy::Sustained)
-	{
-		Ability->EnterAuthorization(TriggerTag, Context);
-		GrantOwnedTags(Ability);
-		RefreshComponentTick();
-	}
+	// 4) 进入授权状态并授予拥有标签
+	Ability->EnterAuthorization(TriggerTag, Context);
+	GrantOwnedTags(Ability);
+	RefreshComponentTick();
 
-	// 5) 执行授权逻辑
+	// 5) 执行授权逻辑；其中若请求自撤销，则于调度作用域归零时结算
 	UE_LOG(LogSingularisGeneralAbility, Verbose, TEXT("能力 %s 已授权"), *Ability->GetName());
 
 	Ability->Authorize(Context);
@@ -413,7 +475,7 @@ void USingularisGeneralAbilityComponent::ScanStateTagAdded(const FGameplayTag& A
 			*Ability->GetName(),
 			*AddedTag.ToString()
 		);
-		RevokeAbility(Ability, ESingularisGeneralAbilityEndReason::Canceled);
+		RequestRevoke(Ability, ESingularisGeneralAbilityEndReason::Canceled);
 	}
 }
 
@@ -444,8 +506,8 @@ void USingularisGeneralAbilityComponent::ApplyStateTagRemoved(const FGameplayTag
 
 void USingularisGeneralAbilityComponent::GrantOwnedTags(const USingularisGeneralAbility* Ability)
 {
-	// 1) 卫语句：仅持续能力持有拥有标签
-	if (!IsValid(Ability) || Ability->Policy != ESingularisGeneralAbilityPolicy::Sustained) return;
+	// 1) 卫语句：能力有效
+	if (!IsValid(Ability)) return;
 
 	// 2) 逐个授予（内部写入含广播与打断扫描）
 	for (const FGameplayTag& Tag : Ability->OwnedTags.GetGameplayTagArray())

@@ -30,8 +30,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
  * 挂载于 Actor（通常为 Pawn），承载并管理 USingularisGeneralAbility 子对象管线。
  * BeginPlay 时将全部 Instanced 能力子对象注册至复制列表；EndPlay 时先撤销全部已授权能力再注销。
  *
- * 生命周期为服务器权威：TryAuthorizeAbility 按触发标签层级匹配触发管线映射并依次执行授权例程；
- * TryRevokeTrigger 处理触发结束信号；状态容器 StateTags 承载规则判定所需的标签状态。
+ * 生命周期为服务器权威：TryAuthorizeAbility 按触发标签层级匹配触发管线映射并依次执行授权例程。
+ * 撤销来源分内部与外部：能力自身经 FinishAbility 请求自撤销，组件对外提供 TryRevoke* 入口；
+ * 两者经唯一撤销例程结算，调度作用域保证迭代安全。状态容器 StateTags 承载规则判定所需的标签状态。
  */
 UCLASS(
 	Blueprintable,
@@ -42,6 +43,9 @@ UCLASS(
 class SINGULARISGENERALABILITY_API USingularisGeneralAbilityComponent : public UActorComponent
 {
 	GENERATED_BODY()
+
+	// 允许通用能力经 RequestRevoke 请求自撤销，见 USingularisGeneralAbility::FinishAbility
+	friend class USingularisGeneralAbility;
 
 public:
 #pragma region Parameter
@@ -81,6 +85,47 @@ private:
 
 #pragma endregion
 
+#pragma region Dispatch
+
+	/** 延迟撤销请求：调度期间积压，归零时统一结算。 */
+	struct FSingularisGeneralAbilityRevokeRequest
+	{
+		TWeakObjectPtr<USingularisGeneralAbility> Ability = nullptr;
+		ESingularisGeneralAbilityEndReason Reason = ESingularisGeneralAbilityEndReason::Completed;
+	};
+
+	/**
+	 * 撤销调度作用域。顶层变更入口内递增调度深度，析构归零时结算积压请求；
+	 * 以 RAII 保证任意提前返回路径均完成结算。
+	 */
+	struct FDispatchScope
+	{
+		explicit FDispatchScope(USingularisGeneralAbilityComponent& InComponent)
+			: Component(InComponent)
+		{
+			++Component.DispatchDepth;
+		}
+
+		~FDispatchScope()
+		{
+			if (--Component.DispatchDepth == 0) Component.FlushPendingRevocations();
+		}
+
+	private:
+		USingularisGeneralAbilityComponent& Component;
+	};
+
+	/** 撤销调度深度。顶层变更入口递增，归零时结算积压请求。 */
+	int32 DispatchDepth = 0;
+
+	/** 结算进行中标记，防止结算期间的重入。 */
+	bool bIsFlushing = false;
+
+	/** 调度期间积压的撤销请求。 */
+	TArray<FSingularisGeneralAbilityRevokeRequest> PendingRevocations{};
+
+#pragma endregion
+
 public:
 #pragma region Constructors
 
@@ -109,9 +154,7 @@ public:
 		Category = "引力奇点通用能力组件|API",
 		meta = (DisplayName = "HasStateTag")
 	)
-	bool HasStateTag(
-		UPARAM(meta = (Categories = "Singularis.General.Ability.State")) const FGameplayTag& Tag
-	) const { return Tag.IsValid() && StateTags.HasTag(Tag); }
+	bool HasStateTag(const FGameplayTag& Tag) const { return Tag.IsValid() && StateTags.HasTag(Tag); }
 
 	/** 获取状态容器副本。 */
 	UFUNCTION(
@@ -135,7 +178,7 @@ public:
 		meta = (DisplayName = "TryAuthorizeAbility")
 	)
 	void TryAuthorizeAbility(
-		UPARAM(meta = (Categories = "Singularis.General.Ability.Trigger")) const FGameplayTag& TriggerTag,
+		const FGameplayTag& TriggerTag,
 		AController* Controller,
 		const FInputActionValue& InputActionValue
 	);
@@ -153,7 +196,7 @@ public:
 		meta = (DisplayName = "TryAuthorizeAbilitiesByTag")
 	)
 	void TryAuthorizeAbilitiesByTag(
-		UPARAM(meta = (Categories = "Singularis.General.Ability.Identity")) const FGameplayTag& IdentityTag,
+		const FGameplayTag& IdentityTag,
 		AController* Controller
 	);
 
@@ -172,7 +215,7 @@ public:
 	void TryAuthorizeAbilityByClass(TSubclassOf<USingularisGeneralAbility> AbilityClass, AController* Controller);
 
 	/**
-	 * 触发结束信号入口。撤销由该触发标签授权的全部持续能力（原因触发结束）。
+	 * 触发结束信号入口。撤销由该触发标签授权的全部已授权能力（外部原因：被打断）。
 	 *
 	 * @param TriggerTag 触发结束信号对应的触发标签
 	 */
@@ -196,10 +239,7 @@ public:
 		Category = "引力奇点通用能力组件|API",
 		meta = (DisplayName = "TryRevokeAbilitiesByTag")
 	)
-	void TryRevokeAbilitiesByTag(
-		UPARAM(meta = (Categories = "Singularis.General.Ability.Identity")) const FGameplayTag& IdentityTag,
-		ESingularisGeneralAbilityEndReason Reason
-	);
+	void TryRevokeAbilitiesByTag(const FGameplayTag& IdentityTag, ESingularisGeneralAbilityEndReason Reason);
 
 	/**
 	 * 新增状态标签。幂等；新增后执行状态打断扫描。
@@ -212,9 +252,7 @@ public:
 		Category = "引力奇点通用能力组件|API",
 		meta = (DisplayName = "AddStateTag")
 	)
-	void AddStateTag(
-		UPARAM(meta = (Categories = "Singularis.General.Ability.State")) const FGameplayTag& Tag
-	);
+	void AddStateTag(const FGameplayTag& Tag);
 
 	/**
 	 * 移除状态标签。幂等；不触发打断扫描。
@@ -227,9 +265,7 @@ public:
 		Category = "引力奇点通用能力组件|API",
 		meta = (DisplayName = "RemoveStateTag")
 	)
-	void RemoveStateTag(
-		UPARAM(meta = (Categories = "Singularis.General.Ability.State")) const FGameplayTag& Tag
-	);
+	void RemoveStateTag(const FGameplayTag& Tag);
 
 #pragma endregion
 
@@ -278,6 +314,17 @@ private:
 	 * @param Reason 撤销原因
 	 */
 	void RevokeAbility(USingularisGeneralAbility* Ability, ESingularisGeneralAbilityEndReason Reason);
+
+	/**
+	 * 撤销调度入口。非调度期立即执行，调度期入队至结算点。仅由能力自撤销经友元调用。
+	 *
+	 * @param Ability 目标能力
+	 * @param Reason 撤销原因
+	 */
+	void RequestRevoke(USingularisGeneralAbility* Ability, ESingularisGeneralAbilityEndReason Reason);
+
+	/** 结算积压的撤销请求；执行期间新入队的请求留待下一轮，直至清空。 */
+	void FlushPendingRevocations();
 
 	/**
 	 * 统一授权例程。门禁 → CanAuthorize → 冲突打断 → 授权状态与拥有标签 → Authorize。

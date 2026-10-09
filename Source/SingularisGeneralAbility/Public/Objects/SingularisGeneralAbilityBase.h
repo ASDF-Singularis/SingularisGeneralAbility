@@ -15,9 +15,10 @@ class USingularisGeneralAbilityComponent;
  * 作为 UObject 子对象挂载于 USingularisGeneralAbilityComponent，
  * 通过 AddReplicatedSubObject 注册至组件级复制列表，实现属性复制的网络同步。
  *
- * 生命周期为服务器权威：授权（Authorize）后进入授权状态，持续能力逐帧调用 Sustain，
- * 直至被撤销（Revoke）。撤销由通用能力组件统一编排，原因见 ESingularisGeneralAbilityEndReason。
- * 能力不感知输入；输入相位由意志组件翻译为触发信号。
+ * 生命周期为服务器权威：授权（Authorize）后进入授权状态，逐帧调用 Sustain，直至被撤销（Revoke）。
+ * 撤销有两条入口：能力自身经 FinishAbility 以 Completed 自撤销，或由通用能力组件以外部原因撤销；
+ * 两者经组件唯一撤销例程结算，原因见 ESingularisGeneralAbilityEndReason。能力不感知输入；
+ * 输入相位由意志组件翻译为触发信号。
  *
  * Blueprint 子类如需客户端反馈（视觉效果、音效、UI 变化等），可重写 OnRep_IsAuthorized
  * 驱动客户端表现逻辑（服务器直接调用时不会触发，仅复制到达客户端时触发）。
@@ -47,20 +48,6 @@ public:
 		)
 	)
 	FGameplayTag IdentityTag{};
-
-	/** 能力政策：瞬时在 Authorize 返回后立即结束；持续保持授权状态直至被撤销。 */
-	UPROPERTY(
-		EditDefaultsOnly,
-		BlueprintReadOnly,
-		Category = "引力奇点通用能力",
-		meta = (
-			DisplayName = "能力政策",
-			AbilityParameter = "true",
-			EditCondition = "IsEditableInDefaults",
-			EditConditionHides
-		)
-	)
-	ESingularisGeneralAbilityPolicy Policy = ESingularisGeneralAbilityPolicy::Instant;
 
 	/** 授权必需：状态容器须包含全部标签（层级包含）。 */
 	UPROPERTY(
@@ -192,6 +179,17 @@ public:
 		meta = (DisplayName = "GetOwningAbilityComponent")
 	)
 	USingularisGeneralAbilityComponent* GetOwningAbilityComponent() const;
+
+	/**
+	 * 完成：请求以“完成”结束本次授权。可在 Authorize、Sustain 或能力自建的任何异步回调中调用；
+	 * 未授权时无操作（幂等）。经组件唯一撤销例程结算。
+	 */
+	UFUNCTION(
+		BlueprintCallable,
+		Category = "引力奇点通用能力|API",
+		meta = (DisplayName = "FinishAbility")
+	)
+	void FinishAbility();
 
 #pragma endregion
 
