@@ -30,7 +30,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
  * 挂载于 Actor（通常为 Pawn），承载并管理 USingularisGeneralAbility 子对象管线。
  * BeginPlay 时将全部 Instanced 能力子对象注册至复制列表；EndPlay 时先撤销全部已授权能力再注销。
  *
- * 生命周期为服务器权威：TryAuthorizeAbility 按触发标签层级匹配触发管线映射并依次执行授权例程。
+ * 生命周期为服务器权威：TryAuthorizeAbility 按触发标签层级匹配触发管线规则表并依次执行授权例程。
  * 撤销来源分内部与外部：能力自身经 FinishAbility 请求自撤销，组件对外提供 TryRevoke* 入口；
  * 两者经唯一撤销例程结算，调度作用域保证迭代安全。状态容器 StateTags 承载规则判定所需的标签状态。
  */
@@ -51,16 +51,16 @@ public:
 #pragma region Parameter
 
 	/**
-	 * 触发管线映射。键为触发标签（支持层级匹配），值为有序能力管线。
-	 * 配置于蓝图默认值，运行时不可变更。
+	 * 触发管线规则表。按数组顺序遍历，触发标签层级匹配后执行对应管线；
+	 * 多规则命中时规则间执行顺序确定。配置于蓝图默认值，运行时不可变更。
 	 */
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
 		Category = "引力奇点通用能力组件",
-		meta = (DisplayName = "触发管线映射", ForceSelection = "true")
+		meta = (DisplayName = "触发管线规则", ForceSelection = "true", TitleProperty = "TriggerTag")
 	)
-	TMap<FGameplayTag, FSingularisGeneralAbilityPipeline> TriggerPipelineMapping{};
+	TArray<FSingularisGeneralAbilityTriggerRule> TriggerPipelineRules{};
 
 #pragma endregion
 

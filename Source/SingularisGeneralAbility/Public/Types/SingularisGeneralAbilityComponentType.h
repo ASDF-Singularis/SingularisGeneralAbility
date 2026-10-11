@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <CoreMinimal.h>
+#include <GameplayTagContainer.h>
 #include <UObject/ObjectPtr.h>
 
 #include "SingularisGeneralAbilityComponentType.generated.h"
@@ -44,4 +45,22 @@ struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityPipeline
 	/** 能力条目有序列表。TitleProperty 绑定至 AbilityName 用于编辑器内联显示 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (TitleProperty = "AbilityName"))
 	TArray<FSingularisGeneralAbilityEntry> Abilities{};
+};
+
+/**
+ * 引力奇点通用能力触发规则。
+ * 触发标签与能力管线的配对。规则表按数组顺序遍历，多规则命中时规则间执行顺序确定。
+ */
+USTRUCT(BlueprintType)
+struct SINGULARISGENERALABILITY_API FSingularisGeneralAbilityTriggerRule
+{
+	GENERATED_BODY()
+
+	/** 触发标签（层级匹配） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FGameplayTag TriggerTag{};
+
+	/** 命中触发标签后按序执行的能力管线 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FSingularisGeneralAbilityPipeline Pipeline{};
 };

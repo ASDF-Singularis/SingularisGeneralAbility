@@ -210,6 +210,19 @@ public:
 	bool CanAuthorize(const FSingularisGeneralAbilityContext& Context) const;
 
 	/**
+	 * 重入策略。已授权状态下再次命中授权例程时，true 表示允许重入（重新执行 Authorize，
+	 * 重入语义由子类实现），false 表示跳过本次授权（默认，单实例语义）。
+	 * 该方法仅在服务器执行；重入不改变授权标记，客户端不会触发 OnRep_IsAuthorized。
+	 */
+	UFUNCTION(
+		BlueprintNativeEvent,
+		BlueprintCallable,
+		Category = "引力奇点通用能力|SPI",
+		meta = (DisplayName = "CanReauthorize")
+	)
+	bool CanReauthorize() const;
+
+	/**
 	 * 授权：执行能力核心行为逻辑。该方法仅在服务器执行。
 	 *
 	 * @param Context 包含 Controller、Instigator、Avatar 等运行时上下文信息

@@ -116,6 +116,12 @@ bool USingularisGeneralAbility::CanAuthorize_Implementation(const FSingularisGen
 	return true;
 }
 
+bool USingularisGeneralAbility::CanReauthorize_Implementation() const
+{
+	// 基类默认拒绝重入，保持单实例语义；子类可覆写以启用重入策略
+	return false;
+}
+
 void USingularisGeneralAbility::Authorize_Implementation(const FSingularisGeneralAbilityContext& Context) {}
 
 void USingularisGeneralAbility::Sustain_Implementation(float DeltaTime) {}

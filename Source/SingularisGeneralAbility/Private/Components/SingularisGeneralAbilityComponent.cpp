@@ -96,13 +96,13 @@ void USingularisGeneralAbilityComponent::TryAuthorizeAbility(
 	Context.AbilityComponent = this;
 	Context.InputValue = InputActionValue;
 
-	// 4) 遍历触发管线映射，使用触发标签层级匹配后按序执行授权例程（按实例去重）
+	// 4) 按序遍历触发管线规则，层级匹配后执行对应管线（按实例去重）
 	TSet<USingularisGeneralAbility*> Attempted;
-	for (const auto& [Tag, Pipeline] : TriggerPipelineMapping)
+	for (const FSingularisGeneralAbilityTriggerRule& Rule : TriggerPipelineRules)
 	{
-		if (!Tag.MatchesTag(TriggerTag)) continue;
+		if (!Rule.TriggerTag.MatchesTag(TriggerTag)) continue;
 
-		for (const FSingularisGeneralAbilityEntry& Entry : Pipeline.Abilities)
+		for (const FSingularisGeneralAbilityEntry& Entry : Rule.Pipeline.Abilities)
 		{
 			USingularisGeneralAbility* Ability = Entry.Ability;
 			if (!IsValid(Ability) || Attempted.Contains(Ability)) continue;
@@ -385,8 +385,9 @@ bool USingularisGeneralAbilityComponent::TryAuthorizeAbilityInstance(
 	const FSingularisGeneralAbilityContext& Context
 )
 {
-	// 1) 卫语句：能力有效且未授权（非重入）
-	if (!IsValid(Ability) || Ability->IsAuthorized()) return false;
+	// 1) 卫语句：能力有效；已授权时依据能力重入策略决定是否跳过
+	if (!IsValid(Ability)) return false;
+	if (Ability->IsAuthorized() && !Ability->CanReauthorize()) return false;
 
 	// 2) 门禁：必需 / 禁止标签判定
 	if (!EvaluateAuthorizationGates(StateTags, Ability->RequiredTags, Ability->BlockedTags))
@@ -425,11 +426,11 @@ void USingularisGeneralAbilityComponent::CollectUniqueAbilities(
 {
 	OutAbilities.Reset();
 
-	// 1) 遍历触发管线映射，按实例去重后收集
+	// 1) 按序遍历触发管线规则，按实例去重后收集
 	TSet<USingularisGeneralAbility*> Visited;
-	for (const auto& [Tag, Pipeline] : TriggerPipelineMapping)
+	for (const FSingularisGeneralAbilityTriggerRule& Rule : TriggerPipelineRules)
 	{
-		for (const FSingularisGeneralAbilityEntry& Entry : Pipeline.Abilities)
+		for (const FSingularisGeneralAbilityEntry& Entry : Rule.Pipeline.Abilities)
 		{
 			USingularisGeneralAbility* Ability = Entry.Ability;
 			if (!IsValid(Ability) || Visited.Contains(Ability)) continue;
